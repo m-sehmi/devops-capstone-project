@@ -8,6 +8,7 @@ Test cases can be run with the following:
 import os
 import logging
 from unittest import TestCase
+from unittest.mock import patch
 from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
@@ -124,3 +125,41 @@ class TestAccountService(TestCase):
         self.assertEqual(response.status_code, status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
 
     # ADD YOUR TEST CASES HERE ...
+
+    def test_get_account(self):
+        """It should Read a single Account"""
+        account = self._create_accounts(1)[0]
+        resp = self.client.get(
+            f"{BASE_URL}/{account.id}", content_type="application/json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.get_json()
+        self.assertEqual(data["name"], account.name)
+
+    def test_get_account_not_found(self):
+        """It should not Read an Account that is not found"""
+        resp = self.client.get(f"{BASE_URL}/0")
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)       
+
+    def test_method_not_allowed(self):
+        """It should not allow an illegal method call"""
+        resp = self.client.put("/") # Assuming root only allows GET
+        self.assertEqual(resp.status_code, 405)
+
+    def test_internal_server_error(self):
+        """It should handle an internal server error"""
+        # Temporarily disable testing mode to get 500 errors instead of exceptions
+        app.config["TESTING"] = False
+        
+        with patch('service.routes.Account.find') as mock_find:
+            mock_find.side_effect = Exception("Crash!")
+            resp = self.client.get(f"{BASE_URL}/1")
+            self.assertEqual(resp.status_code, 500)
+        
+        # Re-enable testing mode
+        app.config["TESTING"] = True
+
+    def test_get_account_not_found(self):
+        """It should not Read an Account that is not found"""
+        resp = self.client.get(f"{BASE_URL}/0")
+        self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
